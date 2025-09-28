@@ -616,7 +616,7 @@ func rollingUpdatePartition(states []replicaState, stsReplicas int32, rollingSte
 	}
 	var partition = rollingStepPartition + unavailable
 
-	// Reduce the partition if replicas are continously not ready. It is safe since updating these replicas does not impact
+	// Reduce the partition if replicas are continuously not ready. It is safe since updating these replicas does not impact
 	// the availability of the LWS. This is important to prevent update from getting stuck in case maxUnavailable is already violated
 	// (for example, all replicas are not ready when rolling update is started).
 	// Note that we never drop the partition below rolliingStepPartition.
@@ -773,6 +773,19 @@ func constructLeaderStatefulSetApplyConfiguration(lws *leaderworkerset.LeaderWor
 		WithAnnotations(map[string]string{
 			leaderworkerset.ReplicasAnnotationKey: strconv.Itoa(int(*lws.Spec.Replicas)),
 		})
+
+	pvcApplyConfiguration := controllerutils.GetPVCApplyConfiguration(lws)
+	if len(pvcApplyConfiguration) > 0 {
+		statefulSetConfig.Spec.WithVolumeClaimTemplates(pvcApplyConfiguration...)
+	}
+
+	if lws.Spec.LeaderWorkerTemplate.PersistentVolumeClaimRetentionPolicy != nil {
+		pvcRetentionPolicy := &appsapplyv1.StatefulSetPersistentVolumeClaimRetentionPolicyApplyConfiguration{
+			WhenDeleted: &lws.Spec.LeaderWorkerTemplate.PersistentVolumeClaimRetentionPolicy.WhenDeleted,
+			WhenScaled:  &lws.Spec.LeaderWorkerTemplate.PersistentVolumeClaimRetentionPolicy.WhenScaled,
+		}
+		statefulSetConfig.Spec.WithPersistentVolumeClaimRetentionPolicy(pvcRetentionPolicy)
+	}
 	return statefulSetConfig, nil
 }
 

@@ -202,7 +202,7 @@ func (r *PodReconciler) handleRestartPolicy(ctx context.Context, pod corev1.Pod,
 	if leaderWorkerSet.Spec.LeaderWorkerTemplate.RestartPolicy != leaderworkerset.RecreateGroupOnPodRestart {
 		return false, nil
 	}
-	// the leader pod will be deleted if the worker pod is deleted or any containes were restarted
+	// the leader pod will be deleted if the worker pod is deleted or any container was restarted
 	if !podutils.ContainerRestarted(pod) && !podutils.PodDeleted(pod) {
 		return false, nil
 	}
@@ -359,6 +359,19 @@ func constructWorkerStatefulSetApplyConfiguration(leaderPod corev1.Pod, lws lead
 			WithSelector(metaapplyv1.LabelSelector().
 				WithMatchLabels(selectorMap))).
 		WithLabels(labelMap)
+
+	pvcApplyConfiguration := controllerutils.GetPVCApplyConfiguration(&lws)
+	if len(pvcApplyConfiguration) > 0 {
+		statefulSetConfig.Spec.WithVolumeClaimTemplates(pvcApplyConfiguration...)
+	}
+
+	if lws.Spec.LeaderWorkerTemplate.PersistentVolumeClaimRetentionPolicy != nil {
+		pvcRetentionPolicy := &appsapplyv1.StatefulSetPersistentVolumeClaimRetentionPolicyApplyConfiguration{
+			WhenDeleted: &lws.Spec.LeaderWorkerTemplate.PersistentVolumeClaimRetentionPolicy.WhenDeleted,
+			WhenScaled:  &lws.Spec.LeaderWorkerTemplate.PersistentVolumeClaimRetentionPolicy.WhenScaled,
+		}
+		statefulSetConfig.Spec.WithPersistentVolumeClaimRetentionPolicy(pvcRetentionPolicy)
+	}
 	return statefulSetConfig, nil
 }
 
